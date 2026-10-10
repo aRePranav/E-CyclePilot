@@ -159,3 +159,17 @@ export interface ApiErrorResponse {
   error: string;
   message: string;
 }
+
+export interface AiExplanationSuccessResponse {
+  success: true;
+  explanation: string;
+}
+
+export interface AiExplanationErrorResponse {
+  success: false;
+  statusCode: number;
+  error: string;
+  message: string;
+}
+
+export type AiExplanationResponse = AiExplanationSuccessResponse | AiExplanationErrorResponse;

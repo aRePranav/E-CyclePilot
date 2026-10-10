@@ -2,6 +2,7 @@ import fastify, { FastifyError, FastifyInstance, FastifyServerOptions } from 'fa
 import cors from '@fastify/cors';
 import { healthRoutes } from './routes/health.js';
 import { assessRoutes } from './routes/assess.js';
+import { aiRoutes } from './routes/ai.js';
 
 export interface AppOptions extends FastifyServerOptions {
   corsOrigins?: string[];
@@ -76,6 +77,7 @@ export async function buildApp(opts: AppOptions = {}): Promise<FastifyInstance> 
 
   await app.register(healthRoutes);
   await app.register(assessRoutes);
+  await app.register(aiRoutes);
 
   return app;
 }

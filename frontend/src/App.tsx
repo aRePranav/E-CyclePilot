@@ -334,6 +334,7 @@ export const App: React.FC = () => {
             <AssessmentResultView
               result={assessmentResult}
               onStartNewAssessment={handleStartNewAssessment}
+              apiUrl={apiUrl}
             />
           </div>
         )}

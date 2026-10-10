@@ -474,6 +474,17 @@ When financial inputs (`estimatedMarketValue`, `estimatedRepairCost`, or compone
 
 ---
 
+## Google Gemini AI Explanation Integration
+
+E-CyclePilot integrates Google's official `@google/genai` SDK and the stable `gemini-3.8-flash` model to provide optional, plain-language technical explanations for completed assessments.
+
+- **Endpoint:** `POST /api/v1/ai/explain`
+- **Environment Variable:** `GEMINI_API_KEY` (configured securely on the backend; never exposed to the frontend)
+- **Role:** Gemini acts strictly as an **explainer** of the deterministic recommendation, translating technical reason codes, safety alerts, and checklists into accessible technician guidance.
+- **Strict Non-Override Invariant:** Gemini never decides, modifies, ranks, or overrides the primary circularity pathway, safety alerts, eligibility determinations, or financial metrics.
+
+---
+
 ## Important System Disclaimers & Operational Distinctions
 
 - **Informative Assessment vs. Physical Operations:** An assessment produced by E-CyclePilot is an informative decision recommendation derived deterministically from user-provided physical, functional, and electrical telemetry. It does not perform physical media wiping, hardware repairs, board rework, or mechanical recycling.

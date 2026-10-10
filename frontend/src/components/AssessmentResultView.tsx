@@ -4,12 +4,68 @@ import type { CircularityPathway, DeviceAssessmentResponse } from '../types/asse
 export interface AssessmentResultViewProps {
   result: DeviceAssessmentResponse;
   onStartNewAssessment: () => void;
+  apiUrl?: string;
 }
 
 export const AssessmentResultView: React.FC<AssessmentResultViewProps> = ({
   result,
   onStartNewAssessment,
+  apiUrl,
 }) => {
+  const [aiExplanation, setAiExplanation] = React.useState<string | null>(null);
+  const [isLoadingAi, setIsLoadingAi] = React.useState<boolean>(false);
+  const [aiError, setAiError] = React.useState<string | null>(null);
+
+  const targetApiUrl =
+    apiUrl || (import.meta.env.VITE_API_URL as string) || 'http://localhost:3001';
+
+  React.useEffect(() => {
+    setAiExplanation(null);
+    setAiError(null);
+    setIsLoadingAi(false);
+  }, [result.assessmentId]);
+
+  const handleGenerateAiExplanation = async () => {
+    if (isLoadingAi) return;
+    setIsLoadingAi(true);
+    setAiError(null);
+
+    try {
+      const response = await fetch(`${targetApiUrl}/api/v1/ai/explain`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          primaryPathway: result.primaryPathway,
+          primaryRationale: result.primaryRationale,
+          safetyAlert: result.safetyAlert,
+          complianceFlags: result.complianceFlags,
+          actionChecklist: result.actionChecklist,
+          reasonCodes: result.reasonCodes,
+          financialSummary: result.financialSummary,
+          assessmentId: result.assessmentId,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setAiExplanation(data.explanation);
+      } else {
+        setAiError(
+          data.message ||
+            `AI explanation service unavailable (HTTP ${response.status}). The assessment decision remains valid.`,
+        );
+      }
+    } catch {
+      setAiError(
+        `Failed to reach AI explanation service at ${targetApiUrl}. Please verify backend network connectivity. The assessment decision remains valid.`,
+      );
+    } finally {
+      setIsLoadingAi(false);
+    }
+  };
   const getPathwayClass = (pathway: CircularityPathway): string => {
     switch (pathway) {
       case 'SPECIAL_HANDLING':
@@ -65,6 +121,15 @@ export const AssessmentResultView: React.FC<AssessmentResultViewProps> = ({
           <span className="assessment-id-badge">ID: {result.assessmentId}</span>
         </div>
         <div className="results-actions">
+          <button
+            type="button"
+            className="btn btn-secondary btn-md"
+            onClick={handleGenerateAiExplanation}
+            disabled={isLoadingAi}
+            data-testid="generate-ai-explanation-btn"
+          >
+            {isLoadingAi ? 'Generating AI Explanation...' : 'Generate AI Explanation'}
+          </button>
           <button
             type="button"
             className="btn btn-primary btn-md"
@@ -138,6 +203,53 @@ export const AssessmentResultView: React.FC<AssessmentResultViewProps> = ({
           {result.primaryRationale}
         </p>
       </div>
+
+      {/* AI Explanation Area (Powered by Google Gemini gemini-3.8-flash) */}
+      {isLoadingAi && (
+        <div className="ai-loading-box" role="status" data-testid="ai-explanation-loading">
+          <div className="spinner" aria-hidden="true" />
+          <p className="ai-loading-text">
+            Consulting Google Gemini (gemini-3.8-flash)... Translating circularity telemetry into
+            plain-language guidance...
+          </p>
+        </div>
+      )}
+
+      {aiError && (
+        <div className="alert-card warning-alert" role="alert" data-testid="ai-explanation-error">
+          <div className="alert-header">
+            <span className="alert-tag">AI Explanation Notice</span>
+          </div>
+          <p className="alert-desc">{aiError}</p>
+          <div style={{ marginTop: '0.75rem' }}>
+            <button
+              type="button"
+              className="btn btn-sm btn-outline"
+              onClick={handleGenerateAiExplanation}
+              data-testid="ai-explanation-retry-btn"
+            >
+              Retry AI Explanation
+            </button>
+          </div>
+        </div>
+      )}
+
+      {aiExplanation && (
+        <div className="ai-explanation-card" data-testid="ai-explanation-card">
+          <div className="ai-explanation-card-header">
+            <div className="ai-header-left">
+              <span className="ai-badge">Google Gemini 3.8 Flash</span>
+              <h3 className="ai-card-title">Plain-Language Assessment Explanation</h3>
+            </div>
+            <span className="ai-disclaimer">
+              Advisory only &bull; Deterministic engine decision is final &bull; No overrides
+            </span>
+          </div>
+          <div className="ai-explanation-markdown" data-testid="ai-explanation-text">
+            {aiExplanation}
+          </div>
+        </div>
+      )}
 
       {/* Pathway Comparison Matrix */}
       <div className="results-section">

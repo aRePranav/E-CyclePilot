@@ -502,3 +502,63 @@ Content-Type: application/json; charset=utf-8
 2. **Data Sanitization Assessment:** Flags advising data sanitization are guided by NIST SP 800-88 Rev. 2 recommendations based on storage metadata. The API does not wipe storage media, verify sanitization execution, or issue sanitization certificates.
 3. **No Compliance Certification:** Returning `FORMAL_RECYCLING` or `SPECIAL_HANDLING` does not constitute an R2v3, e-Stewards, or hazardous materials transport certification. It guides handler safety and facility routing.
 4. **Unverified Telemetry:** Recommendations reflect the telemetry supplied by the user/caller. The engine does not verify claims against hardware sensors or third-party registries.
+
+---
+
+## 9. AI Assessment Explanation (`POST /api/v1/ai/explain`)
+
+**Endpoint:** `POST /api/v1/ai/explain`
+**Model:** `gemini-3.8-flash` via official Google GenAI SDK (`@google/genai`)
+**Authorization:** Server-side API key (`process.env.GEMINI_API_KEY`)
+
+An optional companion endpoint that generates a plain-language technical explanation of a completed assessment recommendation.
+
+> [!IMPORTANT]
+> **Strict Non-Override Invariant:** Gemini acts exclusively as an *explainer*. It **never** decides, modifies, ranks, or overrides the deterministic engine's primary pathway, safety classifications, eligibility matrices, financial figures, or assessment IDs. The deterministic engine decision is authoritative and final.
+
+### Request Payload
+```json
+{
+  "primaryPathway": "REUSE",
+  "primaryRationale": "Device is fully functional, structurally sound, and within the modern secondary deployment window.",
+  "safetyAlert": {
+    "active": false,
+    "hazardLevel": "NONE",
+    "hazardsIdentified": [],
+    "mandatoryContainmentInstructions": []
+  },
+  "complianceFlags": {
+    "dataSanitizationRequired": false,
+    "hazardousTransportRestricted": false
+  },
+  "actionChecklist": ["Clean external surfaces and prepare unit for direct redeployment"],
+  "reasonCodes": ["RULE_USE_001_FULLY_FUNCTIONAL_PRISTINE"],
+  "financialSummary": {
+    "status": "CALCULATED",
+    "currency": "USD",
+    "estimatedMarketValue": 450.0,
+    "estimatedRepairCost": 0.0,
+    "costRatioPercent": 0.0,
+    "netRepairMargin": 450.0,
+    "salvageYieldTotal": null,
+    "notes": "Cost ratio 0.0% is within economic ceiling."
+  },
+  "assessmentId": "ECP-a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+}
+```
+
+### Success Response (`200 OK`)
+```json
+{
+  "success": true,
+  "explanation": "### Circularity Decision\nThe device was assigned to **REUSE** because all hardware sub-systems are fully intact and functional...\n\n### Safety & Handling Guidance\nZero active thermal, battery, or chemical hazards detected...\n\n### Operational Next Steps\n1. Perform surface sanitization...\n2. Package unit for direct redeployment."
+}
+```
+
+### Error Responses
+- `400 Bad Request`: Invalid pathway, malformed structure, or payload length exceeding limits.
+- `413 Payload Too Large`: Body exceeds 32 KB route size limit.
+- `429 Too Many Requests`: Client request rate limit exceeded (includes `Retry-After` header).
+- `503 Service Unavailable`: `GEMINI_API_KEY` is not configured on the server.
+- `504 Gateway Timeout`: AI provider timed out (12s threshold).
+- `502 Bad Gateway`: AI provider communication failure or empty response.

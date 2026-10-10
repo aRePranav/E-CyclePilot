@@ -1246,3 +1246,102 @@ body {
     flex-direction: column;
   }
 }
+
+/* ============================================================================
+   AI Explanation & Google Gemini Component Styles
+   ============================================================================ */
+
+.btn-secondary {
+  background-color: #0284c7;
+  color: #ffffff;
+  border-color: #0284c7;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: #0369a1;
+  border-color: #0369a1;
+}
+
+.btn-secondary:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.ai-explanation-card {
+  margin-top: 1.5rem;
+  background: linear-gradient(135deg, #f0fdf4 0%, #f8fafc 100%);
+  border: 1px solid #bbf7d0;
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.ai-explanation-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #dcfce7;
+}
+
+.ai-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.ai-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  background-color: #15803d;
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  border-radius: 9999px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  width: fit-content;
+}
+
+.ai-card-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.ai-disclaimer {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.ai-explanation-markdown {
+  font-size: 0.8875rem;
+  color: var(--color-text-primary);
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.ai-loading-box {
+  margin-top: 1.5rem;
+  padding: 1.25rem 1.5rem;
+  background-color: var(--color-surface-muted);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.ai-loading-text {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  margin: 0;
+  font-weight: 500;
+}

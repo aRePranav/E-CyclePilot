@@ -452,4 +452,201 @@ describe('Frontend-Backend Contract Parity & Regression Suite', () => {
     expect(exportedJson.timestamp).not.toBe('2026-10-10T00:00:00.000Z');
     expect(revokeObjectURLSpy).toHaveBeenCalledWith('blob:http://localhost/test-blob');
   });
+
+  // --------------------------------------------------------------------------
+  // 11. Google Gemini AI Explanation Suite
+  // --------------------------------------------------------------------------
+  describe('Google Gemini AI Explanation Feature (gemini-3.8-flash)', () => {
+    it('does NOT call AI explain endpoint automatically upon assessment completion', () => {
+      const fetchSpy = vi.spyOn(globalThis, 'fetch');
+      const mock = buildMockResponse('REUSE');
+
+      render(<AssessmentResultView result={mock} onStartNewAssessment={() => {}} />);
+
+      // Button must be present but not clicked
+      expect(screen.getByTestId('generate-ai-explanation-btn')).toBeInTheDocument();
+      // No POST to /api/v1/ai/explain was made
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(screen.queryByTestId('ai-explanation-loading')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('ai-explanation-card')).not.toBeInTheDocument();
+    });
+
+    it('triggers POST /api/v1/ai/explain on user click, shows loading state, and renders explanation', async () => {
+      const mock = buildMockResponse('REUSE');
+      const mockExplanation =
+        '### Circularity Decision\nUnit was designated for REUSE because all functional gates passed.';
+
+      let capturedUrl = '';
+      let capturedBody: string | undefined;
+
+      vi.spyOn(globalThis, 'fetch').mockImplementationOnce(async (url, init) => {
+        capturedUrl = String(url);
+        capturedBody = init?.body as string;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            success: true,
+            explanation: mockExplanation,
+          }),
+        } as Response;
+      });
+
+      render(
+        <AssessmentResultView
+          result={mock}
+          onStartNewAssessment={() => {}}
+          apiUrl="http://localhost:3001"
+        />,
+      );
+
+      const generateBtn = screen.getByTestId('generate-ai-explanation-btn');
+      fireEvent.click(generateBtn);
+
+      // Loading state during submission
+      await waitFor(() => {
+        expect(screen.getByTestId('ai-explanation-card')).toBeInTheDocument();
+      });
+
+      expect(capturedUrl).toBe('http://localhost:3001/api/v1/ai/explain');
+      const parsedBody = JSON.parse(capturedBody || '{}');
+      expect(parsedBody.primaryPathway).toBe('REUSE');
+      expect(parsedBody.assessmentId).toBe(mock.assessmentId);
+
+      // Rendered explanation content
+      expect(screen.getByTestId('ai-explanation-text')).toHaveTextContent(/Circularity Decision/i);
+      expect(screen.getByTestId('ai-explanation-text')).toHaveTextContent(
+        /Unit was designated for REUSE because all functional gates passed/i,
+      );
+      expect(screen.getByText(/Google Gemini 3.8 Flash/i)).toBeInTheDocument();
+    });
+
+    it('strictly preserves safety alerts and primary pathway unchanged after explanation generation', async () => {
+      const mockHazard = buildMockResponse('SPECIAL_HANDLING');
+
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          explanation: 'Mandatory quarantine required for swollen lithium battery.',
+        }),
+      } as Response);
+
+      render(
+        <AssessmentResultView
+          result={mockHazard}
+          onStartNewAssessment={() => {}}
+          apiUrl="http://localhost:3001"
+        />,
+      );
+
+      // Safety alert and pathway are present before explanation
+      expect(screen.getByTestId('safety-alert-banner')).toBeInTheDocument();
+      expect(screen.getByTestId('primary-pathway-badge')).toHaveTextContent('SPECIAL_HANDLING');
+
+      fireEvent.click(screen.getByTestId('generate-ai-explanation-btn'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('ai-explanation-card')).toBeInTheDocument();
+      });
+
+      // Safety alert and pathway remain identical and dominant
+      expect(screen.getByTestId('safety-alert-banner')).toBeInTheDocument();
+      expect(screen.getByTestId('primary-pathway-badge')).toHaveTextContent('SPECIAL_HANDLING');
+      expect(screen.getByTestId('primary-rationale')).toHaveTextContent(
+        mockHazard.primaryRationale,
+      );
+    });
+
+    it('renders error notice and retry button when AI service is unavailable without breaking assessment', async () => {
+      const mock = buildMockResponse('REPAIR');
+
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        json: async () => ({
+          success: false,
+          statusCode: 503,
+          error: 'SERVICE_UNAVAILABLE',
+          message: 'AI explanation service is currently unavailable (API key not configured).',
+        }),
+      } as Response);
+
+      render(
+        <AssessmentResultView
+          result={mock}
+          onStartNewAssessment={() => {}}
+          apiUrl="http://localhost:3001"
+        />,
+      );
+
+      fireEvent.click(screen.getByTestId('generate-ai-explanation-btn'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('ai-explanation-error')).toBeInTheDocument();
+      });
+
+      expect(screen.getByTestId('ai-explanation-error')).toHaveTextContent(
+        /AI explanation service is currently unavailable/i,
+      );
+      expect(screen.getByTestId('ai-explanation-retry-btn')).toBeInTheDocument();
+
+      // Original assessment results remain fully visible and usable
+      expect(screen.getByTestId('primary-pathway-badge')).toHaveTextContent('REPAIR');
+      expect(screen.getByTestId('download-json-btn')).toBeInTheDocument();
+    });
+
+    it('preserves exact assessment JSON download metadata even after AI explanation is displayed', async () => {
+      const mock = buildMockResponse('REUSE', {
+        assessmentId: 'ECP-PRESERVED-ID-999',
+        timestamp: '2026-10-10T12:00:00.000Z',
+      });
+
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          explanation: 'AI generated explanation text',
+        }),
+      } as Response);
+
+      const createObjectURLSpy = vi.fn().mockReturnValue('blob:http://localhost/test-blob');
+      const revokeObjectURLSpy = vi.fn();
+      vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+      globalThis.URL.createObjectURL = createObjectURLSpy;
+      globalThis.URL.revokeObjectURL = revokeObjectURLSpy;
+
+      render(
+        <AssessmentResultView
+          result={mock}
+          onStartNewAssessment={() => {}}
+          apiUrl="http://localhost:3001"
+        />,
+      );
+
+      // Generate AI explanation first
+      fireEvent.click(screen.getByTestId('generate-ai-explanation-btn'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('ai-explanation-card')).toBeInTheDocument();
+      });
+
+      // Now download original assessment JSON
+      fireEvent.click(screen.getByTestId('download-json-btn'));
+
+      expect(createObjectURLSpy).toHaveBeenCalledTimes(1);
+      const firstCall = createObjectURLSpy.mock.calls[0];
+      expect(firstCall).toBeDefined();
+      const blobArg = firstCall![0] as Blob;
+      const exportedText = await blobArg.text();
+      const exportedJson = JSON.parse(exportedText);
+
+      // Original assessment metadata is completely preserved
+      expect(exportedJson.assessmentId).toBe('ECP-PRESERVED-ID-999');
+      expect(exportedJson.timestamp).toBe('2026-10-10T12:00:00.000Z');
+      expect(exportedJson.primaryPathway).toBe('REUSE');
+    });
+  });
 });
