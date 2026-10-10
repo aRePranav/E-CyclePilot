@@ -405,4 +405,51 @@ describe('Frontend-Backend Contract Parity & Regression Suite', () => {
     // Ensures error response does not render as successful assessment
     expect(screen.queryByTestId('assessment-results')).not.toBeInTheDocument();
   });
+
+  // --------------------------------------------------------------------------
+  // 10. Downloaded Assessment JSON Preserves Runtime Assessment ID & Timestamp
+  // --------------------------------------------------------------------------
+  it('preserves dynamic assessment ID and runtime timestamp in downloaded JSON export without substitution', async () => {
+    const dynamicId = 'ECP-9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d';
+    const runtimeTimestamp = new Date().toISOString();
+
+    const mockResponse = buildMockResponse('REUSE', {
+      assessmentId: dynamicId,
+      timestamp: runtimeTimestamp,
+    });
+
+    const createObjectURLSpy = vi.fn().mockReturnValue('blob:http://localhost/test-blob');
+    const revokeObjectURLSpy = vi.fn();
+    const anchorClickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => {});
+    globalThis.URL.createObjectURL = createObjectURLSpy;
+    globalThis.URL.revokeObjectURL = revokeObjectURLSpy;
+
+    render(<AssessmentResultView result={mockResponse} onStartNewAssessment={() => {}} />);
+
+    // Verify assessment ID is rendered in UI header
+    expect(screen.getByText(`ID: ${dynamicId}`)).toBeInTheDocument();
+
+    // Trigger JSON download
+    const downloadBtn = screen.getByTestId('download-json-btn');
+    fireEvent.click(downloadBtn);
+
+    expect(createObjectURLSpy).toHaveBeenCalledTimes(1);
+    expect(anchorClickSpy).toHaveBeenCalledTimes(1);
+    const firstCall = createObjectURLSpy.mock.calls[0];
+    expect(firstCall).toBeDefined();
+    const blobArg = firstCall![0] as Blob;
+    expect(blobArg).toBeInstanceOf(Blob);
+
+    const exportedText = await blobArg.text();
+    const exportedJson = JSON.parse(exportedText);
+
+    // Assert exact preservation of API-returned operational metadata
+    expect(exportedJson.assessmentId).toBe(dynamicId);
+    expect(exportedJson.timestamp).toBe(runtimeTimestamp);
+    expect(exportedJson.assessmentId).not.toBe('ECP-ASSESSMENT-DETERMINISTIC');
+    expect(exportedJson.timestamp).not.toBe('2026-10-10T00:00:00.000Z');
+    expect(revokeObjectURLSpy).toHaveBeenCalledWith('blob:http://localhost/test-blob');
+  });
 });

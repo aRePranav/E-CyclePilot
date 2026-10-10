@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { assessDevice } from '../engine/index.js';
 import type { DeviceAssessmentRequest } from '../engine/types.js';
@@ -12,6 +13,10 @@ export const assessRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
       return reply.status(result.statusCode).send(result);
     }
 
-    return reply.status(200).send(result);
+    return reply.status(200).send({
+      ...result,
+      assessmentId: `ECP-${randomUUID()}`,
+      timestamp: new Date().toISOString(),
+    });
   });
 };

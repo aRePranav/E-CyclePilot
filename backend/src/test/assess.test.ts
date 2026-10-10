@@ -72,8 +72,18 @@ describe('Assessment API Integration Tests (POST /api/v1/assess)', () => {
     expect(body.reasonCodes).toContain('RULE_SAF_001_BATTERY_SWELLING_CONFIRMED');
     expect(body.reasonCodes).toContain('COMMERCIAL_VALUE_OVERRIDDEN_BY_SAFETY');
 
-    // Canonical parity verification with direct engine output
-    expect(body).toEqual(expectedCanonical);
+    // Canonical parity verification with direct engine output (excluding dynamic operational metadata)
+    expect(body.assessmentId).toMatch(
+      /^ECP-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    );
+    expect(Number.isNaN(Date.parse(body.timestamp))).toBe(false);
+    const { assessmentId: _bodyId1, timestamp: _bodyTs1, ...bodyDecision1 } = body;
+    const {
+      assessmentId: _canId1,
+      timestamp: _canTs1,
+      ...canDecision1
+    } = JSON.parse(JSON.stringify(expectedCanonical));
+    expect(bodyDecision1).toEqual(canDecision1);
   });
 
   // --------------------------------------------------------------------------
@@ -96,8 +106,18 @@ describe('Assessment API Integration Tests (POST /api/v1/assess)', () => {
     expect(body.complianceFlags.dataSanitizationRequired).toBe(false);
     expect(body.disqualifiedPathways).toContain('SPECIAL_HANDLING');
 
-    // Canonical parity verification
-    expect(body).toEqual(expectedCanonical);
+    // Canonical parity verification with direct engine output (excluding dynamic operational metadata)
+    expect(body.assessmentId).toMatch(
+      /^ECP-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    );
+    expect(Number.isNaN(Date.parse(body.timestamp))).toBe(false);
+    const { assessmentId: _bodyId2, timestamp: _bodyTs2, ...bodyDecision2 } = body;
+    const {
+      assessmentId: _canId2,
+      timestamp: _canTs2,
+      ...canDecision2
+    } = JSON.parse(JSON.stringify(expectedCanonical));
+    expect(bodyDecision2).toEqual(canDecision2);
   });
 
   // --------------------------------------------------------------------------
@@ -121,8 +141,18 @@ describe('Assessment API Integration Tests (POST /api/v1/assess)', () => {
     expect(body.financialSummary.netRepairMargin).toBe(195.0);
     expect(body.financialSummary.costRatioPercent).toBe(30.4);
 
-    // Canonical parity verification
-    expect(body).toEqual(expectedCanonical);
+    // Canonical parity verification with direct engine output (excluding dynamic operational metadata)
+    expect(body.assessmentId).toMatch(
+      /^ECP-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    );
+    expect(Number.isNaN(Date.parse(body.timestamp))).toBe(false);
+    const { assessmentId: _bodyId3, timestamp: _bodyTs3, ...bodyDecision3 } = body;
+    const {
+      assessmentId: _canId3,
+      timestamp: _canTs3,
+      ...canDecision3
+    } = JSON.parse(JSON.stringify(expectedCanonical));
+    expect(bodyDecision3).toEqual(canDecision3);
   });
 
   // --------------------------------------------------------------------------
@@ -146,8 +176,18 @@ describe('Assessment API Integration Tests (POST /api/v1/assess)', () => {
     expect(body.financialSummary.status).toBe('DATA_UNAVAILABLE');
     expect(body.financialSummary.salvageYieldTotal).toBeNull();
 
-    // Canonical parity verification
-    expect(body).toEqual(expectedCanonical);
+    // Canonical parity verification with direct engine output (excluding dynamic operational metadata)
+    expect(body.assessmentId).toMatch(
+      /^ECP-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    );
+    expect(Number.isNaN(Date.parse(body.timestamp))).toBe(false);
+    const { assessmentId: _bodyId4, timestamp: _bodyTs4, ...bodyDecision4 } = body;
+    const {
+      assessmentId: _canId4,
+      timestamp: _canTs4,
+      ...canDecision4
+    } = JSON.parse(JSON.stringify(expectedCanonical));
+    expect(bodyDecision4).toEqual(canDecision4);
   });
 
   // --------------------------------------------------------------------------
@@ -504,5 +544,103 @@ describe('Assessment API Integration Tests (POST /api/v1/assess)', () => {
         }
       });
     }
+  });
+
+  // --------------------------------------------------------------------------
+  // Runtime Operational Metadata & Deterministic Business Engine Preservation
+  // --------------------------------------------------------------------------
+  describe('Runtime Operational Metadata and Deterministic Business Decisions', () => {
+    // A. Unique IDs:
+    it('generates unique assessment IDs (ECP-uuid) for repeated identical requests', async () => {
+      const payload = TC_USE_001_PAYLOAD;
+
+      const res1 = await app.inject({
+        method: 'POST',
+        url: '/api/v1/assess',
+        payload,
+      });
+      const res2 = await app.inject({
+        method: 'POST',
+        url: '/api/v1/assess',
+        payload,
+      });
+
+      expect(res1.statusCode).toBe(200);
+      expect(res2.statusCode).toBe(200);
+
+      const body1 = JSON.parse(res1.payload);
+      const body2 = JSON.parse(res2.payload);
+
+      const uuidRegex = /^ECP-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      expect(body1.assessmentId).toMatch(uuidRegex);
+      expect(body2.assessmentId).toMatch(uuidRegex);
+
+      expect(body1.assessmentId).not.toBe(body2.assessmentId);
+    });
+
+    // B. Valid timestamps:
+    it('generates a valid ISO 8601 UTC timestamp falling within the request execution window', async () => {
+      const beforeTime = Date.now();
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/v1/assess',
+        payload: TC_USE_001_PAYLOAD,
+      });
+
+      const afterTime = Date.now();
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.payload);
+
+      expect(body.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+
+      const parsedTs = Date.parse(body.timestamp);
+      expect(Number.isNaN(parsedTs)).toBe(false);
+
+      expect(parsedTs).toBeGreaterThanOrEqual(beforeTime - 2000);
+      expect(parsedTs).toBeLessThanOrEqual(afterTime + 2000);
+    });
+
+    // C. Deterministic business decisions:
+    it('preserves complete determinism of all decision fields across repeated identical requests', async () => {
+      const payload = TC_REP_001_PAYLOAD;
+
+      const res1 = await app.inject({
+        method: 'POST',
+        url: '/api/v1/assess',
+        payload,
+      });
+      const res2 = await app.inject({
+        method: 'POST',
+        url: '/api/v1/assess',
+        payload,
+      });
+
+      expect(res1.statusCode).toBe(200);
+      expect(res2.statusCode).toBe(200);
+
+      const body1 = JSON.parse(res1.payload);
+      const body2 = JSON.parse(res2.payload);
+
+      // Business decision fields must remain strictly identical
+      expect(body1.primaryPathway).toBe(body2.primaryPathway);
+      expect(body1.primaryRationale).toBe(body2.primaryRationale);
+      expect(body1.safetyAlert).toEqual(body2.safetyAlert);
+      expect(body1.complianceFlags).toEqual(body2.complianceFlags);
+      expect(body1.eligiblePathways).toEqual(body2.eligiblePathways);
+      expect(body1.disqualifiedPathways).toEqual(body2.disqualifiedPathways);
+      expect(body1.disqualificationReasons).toEqual(body2.disqualificationReasons);
+      expect(body1.pathwayComparison).toEqual(body2.pathwayComparison);
+      expect(body1.reasonCodes).toEqual(body2.reasonCodes);
+      expect(body1.actionChecklist).toEqual(body2.actionChecklist);
+      expect(body1.harvestManifest).toEqual(body2.harvestManifest);
+      expect(body1.financialSummary).toEqual(body2.financialSummary);
+
+      // Excluding operational metadata (assessmentId and timestamp), payloads are completely equal
+      const { assessmentId: _id1, timestamp: _ts1, ...decision1 } = body1;
+      const { assessmentId: _id2, timestamp: _ts2, ...decision2 } = body2;
+      expect(decision1).toEqual(decision2);
+    });
   });
 });

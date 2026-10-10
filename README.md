@@ -184,8 +184,8 @@ When financial inputs (`estimatedMarketValue`, `estimatedRepairCost`, or compone
 {
   "success": true,
   "statusCode": 200,
-  "assessmentId": "ECP-ASSESSMENT-DETERMINISTIC",
-  "timestamp": "2026-10-10T00:00:00.000Z",
+  "assessmentId": "ECP-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "timestamp": "2026-10-10T14:32:00.000Z",
   "primaryPathway": "REUSE",
   "primaryRationale": "Device is fully functional, structurally sound, and within the modern secondary deployment window. Immediate reuse affirmed.",
   "safetyAlert": {
@@ -308,8 +308,8 @@ When financial inputs (`estimatedMarketValue`, `estimatedRepairCost`, or compone
 {
   "success": true,
   "statusCode": 200,
-  "assessmentId": "ECP-ASSESSMENT-DETERMINISTIC",
-  "timestamp": "2026-10-10T00:00:00.000Z",
+  "assessmentId": "ECP-f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "timestamp": "2026-10-10T14:35:12.345Z",
   "primaryPathway": "COMPONENT_RECOVERY",
   "primaryRationale": "Mainboard is non-functional, but verified working modular subcomponents can be salvaged to prevent unnecessary silicon waste.",
   "safetyAlert": {

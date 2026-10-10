@@ -529,6 +529,14 @@ describe('E-CyclePilot Complete Frontend Application Suite', () => {
     fireEvent.click(screen.getByTestId('download-json-btn'));
 
     expect(createObjectURLSpy).toHaveBeenCalled();
+    const firstCall = createObjectURLSpy.mock.calls[0];
+    expect(firstCall).toBeDefined();
+    const createdBlob = firstCall![0] as Blob;
+    expect(createdBlob).toBeInstanceOf(Blob);
+    const exportedText = await createdBlob.text();
+    const exportedJson = JSON.parse(exportedText);
+    expect(exportedJson.assessmentId).toBe(MOCK_REUSE_RESPONSE.assessmentId);
+    expect(exportedJson.timestamp).toBe(MOCK_REUSE_RESPONSE.timestamp);
     expect(revokeObjectURLSpy).toHaveBeenCalledWith('blob:http://localhost/test-blob');
   });
 
