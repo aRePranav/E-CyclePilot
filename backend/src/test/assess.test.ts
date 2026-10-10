@@ -6,6 +6,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { FastifyInstance } from 'fastify';
 import { buildApp } from '../app.js';
 import { assessDevice } from '../engine/index.js';
+import { validateAssessmentInput } from '../engine/validator.js';
 import {
   TC_SAF_001_PAYLOAD,
   TC_USE_001_PAYLOAD,
@@ -14,6 +15,7 @@ import {
   TC_INV_001_PAYLOAD,
   TC_INV_002_PAYLOAD,
 } from './fixtures/scenarios.js';
+import { SAMPLE_SCENARIOS } from '../../../frontend/src/fixtures/sampleScenarios.js';
 
 describe('Assessment API Integration Tests (POST /api/v1/assess)', () => {
   let app: FastifyInstance;
@@ -411,5 +413,96 @@ describe('Assessment API Integration Tests (POST /api/v1/assess)', () => {
       const body = JSON.parse(response.payload);
       expect(body.success).toBe(true);
     });
+  });
+
+  // --------------------------------------------------------------------------
+  // Frontend-Backend Contract Parity: Synthetic Demo Scenarios
+  // --------------------------------------------------------------------------
+  describe('Frontend-Backend Contract Parity: Synthetic Demo Scenarios', () => {
+    it('contains exactly six synthetic demo scenarios in the frontend fixture', () => {
+      expect(SAMPLE_SCENARIOS).toHaveLength(6);
+      const ids = SAMPLE_SCENARIOS.map((s) => s.id);
+      expect(ids).toEqual([
+        'hazardous-battery',
+        'pristine-reuse',
+        'viable-repair',
+        'refurbishment-candidate',
+        'component-recovery-unpriced',
+        'formal-recycling-obsolete',
+      ]);
+    });
+
+    for (const scenario of SAMPLE_SCENARIOS) {
+      it(`evaluates frontend scenario "${scenario.id}" (${scenario.name}) to expected pathway "${scenario.expectedPathway}" with HTTP 200`, async () => {
+        // A. Validate payload schema against backend validator
+        const validation = validateAssessmentInput(scenario.payload);
+        expect(validation.valid).toBe(true);
+
+        // B. Submit to real in-process Fastify route
+        const response = await app.inject({
+          method: 'POST',
+          url: '/api/v1/assess',
+          payload: scenario.payload,
+        });
+
+        expect(response.statusCode).toBe(200);
+        const body = JSON.parse(response.payload);
+        expect(body.success).toBe(true);
+        expect(body.statusCode).toBe(200);
+        expect(body.assessmentId).toBeDefined();
+
+        // C. Check expected primary pathway
+        expect(body.primaryPathway).toBe(scenario.expectedPathway);
+
+        // D. Verify response schema compliance
+        expect(body.pathwayComparison).toHaveLength(6);
+        for (const item of body.pathwayComparison) {
+          expect(['RECOMMENDED', 'ELIGIBLE', 'DISQUALIFIED']).toContain(item.status);
+          expect(typeof item.score).toBe('number');
+          expect(typeof item.rationale).toBe('string');
+        }
+
+        // The primary pathway must have status RECOMMENDED
+        const recommendedItem = body.pathwayComparison.find(
+          (p: { pathway: string }) => p.pathway === scenario.expectedPathway,
+        );
+        expect(recommendedItem?.status).toBe('RECOMMENDED');
+
+        // E. Scenario-specific invariant assertions
+        if (scenario.id === 'hazardous-battery') {
+          expect(body.safetyAlert.active).toBe(true);
+          expect(body.safetyAlert.hazardLevel).toBe('CRITICAL');
+          expect(body.disqualifiedPathways).toEqual(
+            expect.arrayContaining([
+              'REUSE',
+              'REPAIR',
+              'REFURBISHMENT',
+              'COMPONENT_RECOVERY',
+              'FORMAL_RECYCLING',
+            ]),
+          );
+        } else if (scenario.id === 'pristine-reuse') {
+          expect(body.safetyAlert.active).toBe(false);
+          expect(body.complianceFlags.dataSanitizationRequired).toBe(false);
+        } else if (scenario.id === 'viable-repair') {
+          expect(body.financialSummary.status).toBe('CALCULATED');
+          expect(body.financialSummary.costRatioPercent).toBeLessThanOrEqual(70);
+          expect(body.reasonCodes).toContain('RULE_REP_001_ISOLATED_DEFECT_ECONOMICALLY_VIABLE');
+        } else if (scenario.id === 'refurbishment-candidate') {
+          expect(body.reasonCodes).toContain('RULE_REF_001_MULTI_POINT_MAINTENANCE_REQUIRED');
+          expect(body.eligiblePathways).toContain('REFURBISHMENT');
+        } else if (scenario.id === 'component-recovery-unpriced') {
+          expect(body.reasonCodes).toContain(
+            'RULE_CMP_001_VALUABLE_MODULAR_COMPONENTS_HARVESTABLE',
+          );
+          expect(body.harvestManifest).toHaveLength(2);
+          expect(body.financialSummary.status).toBe('DATA_UNAVAILABLE');
+          expect(body.financialSummary.salvageYieldTotal).toBeNull();
+        } else if (scenario.id === 'formal-recycling-obsolete') {
+          expect(body.reasonCodes).toContain('RULE_REC_001_ARCHITECTURAL_OBSOLESCENCE');
+          expect(body.disqualifiedPathways).toContain('REUSE');
+        }
+      });
+    }
   });
 });

@@ -1,4 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
+import type {
+  DeviceAssessmentRequest,
+  DeviceAssessmentResponse,
+  ApiErrorResponse,
+} from './types/assessment';
+import { AssessmentForm } from './components/AssessmentForm';
+import { AssessmentResultView } from './components/AssessmentResultView';
 import './styles.css';
 
 export type ApiConnectionState = 'checking' | 'online' | 'offline';
@@ -9,13 +16,61 @@ export interface HealthData {
   version: string;
 }
 
+const DEFAULT_FORM_DATA: DeviceAssessmentRequest = {
+  device: {
+    category: 'LAPTOP',
+    brand: 'Lenovo',
+    model: 'ThinkPad T14 Gen 2',
+    ageYears: 2.5,
+  },
+  physicalCondition: {
+    chassisIntegrity: 'INTACT',
+    screenCondition: 'INTACT',
+    liquidDamage: false,
+    thermalDamage: 'NONE',
+    chemicalHazard: 'NONE',
+  },
+  functionalStatus: {
+    powerState: 'POWERS_ON',
+    bootState: 'OS_BOOTS',
+    displayState: 'WORKING',
+  },
+  battery: {
+    present: true,
+    healthPercentage: 88,
+    swellingState: 'NONE',
+    thermalBehavior: 'NORMAL',
+  },
+  storage: {
+    mediaType: 'NVME_SSD',
+    sanitizationState: 'VERIFIED_WIPED',
+  },
+  modularComponents: [],
+  economics: {
+    estimatedMarketValue: 450.0,
+    estimatedRepairCost: 0.0,
+    estimatedComponentSalvageValue: null,
+    scrapWeightKg: null,
+  },
+};
+
 export const App: React.FC = () => {
   const [connectionState, setConnectionState] = useState<ApiConnectionState>('checking');
   const [healthInfo, setHealthInfo] = useState<HealthData | null>(null);
 
+  const [formData, setFormData] = useState<DeviceAssessmentRequest>(DEFAULT_FORM_DATA);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [assessmentResult, setAssessmentResult] = useState<DeviceAssessmentResponse | null>(null);
+
+  const formRef = useRef<HTMLDivElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
+
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+  // Backend Health Polling / Verification
   useEffect(() => {
     let isMounted = true;
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
     const checkHealth = async () => {
       try {
@@ -45,10 +100,63 @@ export const App: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [apiUrl]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
+    setErrorMessage(null);
+    setAssessmentResult(null); // Clear stale results
+
+    try {
+      const response = await fetch(`${apiUrl}/api/v1/assess`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success !== false) {
+        setAssessmentResult(data as DeviceAssessmentResponse);
+        // Scroll to results on success
+        setTimeout(() => {
+          resultsRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+      } else {
+        const errObj = data as ApiErrorResponse;
+        setErrorMessage(
+          errObj.message ||
+            `Assessment rejected with HTTP ${response.status}: ${errObj.error || 'Validation error'}`,
+        );
+      }
+    } catch {
+      setErrorMessage(
+        `Failed to reach assessment service at ${apiUrl}. Please verify backend network connectivity.`,
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleReset = () => {
+    setFormData(DEFAULT_FORM_DATA);
+    setErrorMessage(null);
+    setAssessmentResult(null);
+  };
+
+  const handleStartNewAssessment = () => {
+    setAssessmentResult(null);
+    formRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   return (
     <div className="app-container">
+      {/* Top Header */}
       <header className="app-header">
         <div className="header-content">
           <div className="brand-group">
@@ -71,19 +179,22 @@ export const App: React.FC = () => {
         </div>
       </header>
 
+      {/* Main Content */}
       <main className="main-content">
+        {/* Hero Introduction */}
         <section className="hero-section">
           <p className="hero-subtitle">AI-Powered E-Waste Recovery & Circularity Decision Engine</p>
           <h1 className="hero-title">E-CyclePilot</h1>
           <p className="hero-tagline">Give Every Device a Smarter Second Life.</p>
           <p className="hero-description">
             E-CyclePilot provides deterministic, reproducible triage for surplus and end-of-life
-            electronics. Using verified physical telemetry, strict safety rules, and explainable
-            decision logic, the engine classifies devices into appropriate recovery pathways without
-            fabricating market estimates or environmental claims.
+            electronics. Using verified physical telemetry, strict safety precedence rules, and
+            explainable decision logic, the engine classifies devices into appropriate recovery
+            pathways without fabricating market estimates or environmental claims.
           </p>
         </section>
 
+        {/* System Invariants Cards */}
         <section className="invariants-section" aria-label="System Guiding Invariants">
           <div className="invariants-grid">
             <div className="invariant-card">
@@ -114,6 +225,7 @@ export const App: React.FC = () => {
           </div>
         </section>
 
+        {/* Six Circularity Pathways Overview */}
         <section className="pathways-section" aria-label="Circularity Pathways">
           <div className="section-header">
             <h2 className="section-title">Six Circularity Pathways</h2>
@@ -192,6 +304,41 @@ export const App: React.FC = () => {
           </div>
         </section>
 
+        {/* Device Assessment Interactive Form Section */}
+        <section
+          className="assessment-workspace-section"
+          ref={formRef}
+          aria-label="Device Assessment Workspace"
+        >
+          <div className="section-header">
+            <h2 className="section-title">Device Assessment Form</h2>
+            <p className="section-description">
+              Provide physical, functional, and electrical telemetry to evaluate the device against
+              the deterministic recovery pipeline.
+            </p>
+          </div>
+
+          <AssessmentForm
+            formData={formData}
+            onChange={setFormData}
+            onSubmit={handleSubmit}
+            onReset={handleReset}
+            isLoading={isSubmitting}
+            validationError={errorMessage}
+          />
+        </section>
+
+        {/* Assessment Results Section */}
+        {assessmentResult && (
+          <div ref={resultsRef}>
+            <AssessmentResultView
+              result={assessmentResult}
+              onStartNewAssessment={handleStartNewAssessment}
+            />
+          </div>
+        )}
+
+        {/* System Diagnostics Panel */}
         <section className="status-panel" aria-label="System Diagnostics">
           <h2 className="status-panel-title">System Diagnostics</h2>
           <div className="status-panel-details">
@@ -206,17 +353,17 @@ export const App: React.FC = () => {
               </strong>
             </p>
             <p>
-              Endpoint Target:{' '}
-              <code>{import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/v1/health</code>
+              Endpoint Target: <code>{apiUrl}/api/v1/health</code>
             </p>
           </div>
         </section>
       </main>
 
+      {/* Footer */}
       <footer className="app-footer">
         <p>
-          E-CyclePilot &bull; Deterministic E-Waste Circularity Decision Engine &bull; Hackathon
-          Scaffold v0.1.0
+          E-CyclePilot &bull; Deterministic E-Waste Circularity Decision Engine &bull; Production
+          Release v0.1.0
         </p>
       </footer>
     </div>
