@@ -12,7 +12,7 @@ export type ValidationResult =
  * Validates untrusted runtime input according to schema boundaries and logical invariants.
  */
 export function validateAssessmentInput(input: unknown): ValidationResult {
-  if (!input || typeof input !== 'object') {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
     return {
       valid: false,
       error: {

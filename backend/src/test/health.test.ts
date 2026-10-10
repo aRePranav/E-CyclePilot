@@ -44,7 +44,7 @@ describe('Health Endpoint (GET /api/v1/health)', () => {
     expect(response.headers['access-control-allow-origin']).toBe('http://localhost:5173');
   });
 
-  it('blocks disallowed origin via CORS policy', async () => {
+  it('blocks disallowed origin via CORS policy with clean HTTP 403', async () => {
     const response = await app.inject({
       method: 'GET',
       url: '/api/v1/health',
@@ -53,7 +53,13 @@ describe('Health Endpoint (GET /api/v1/health)', () => {
       },
     });
 
-    expect(response.statusCode).toBe(500);
-    expect(response.payload).toContain('not allowed by CORS policy');
+    expect(response.statusCode).toBe(403);
+    expect(response.headers['access-control-allow-origin']).toBeUndefined();
+    const body = JSON.parse(response.payload);
+    expect(body.statusCode).toBe(403);
+    expect(body.error).toBe('Forbidden');
+    expect(body.message).toContain('not allowed by CORS policy');
+    expect(response.payload).not.toContain('node_modules');
+    expect(response.payload).not.toContain('stack');
   });
 });
